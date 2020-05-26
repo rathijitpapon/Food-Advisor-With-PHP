@@ -1,0 +1,1597 @@
+--
+-- PostgreSQL database dump
+--
+
+-- Dumped from database version 9.5.15
+-- Dumped by pg_dump version 9.5.15
+
+-- Started on 2019-02-14 11:38:30 +06
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- TOC entry 8 (class 2615 OID 16395)
+-- Name: Food Advisor; Type: SCHEMA; Schema: -; Owner: postgres
+--
+
+CREATE SCHEMA "Food Advisor";
+
+
+ALTER SCHEMA "Food Advisor" OWNER TO postgres;
+
+--
+-- TOC entry 1 (class 3079 OID 12399)
+-- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: 
+--
+
+CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
+
+
+--
+-- TOC entry 2286 (class 0 OID 0)
+-- Dependencies: 1
+-- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: 
+--
+
+COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
+
+
+--
+-- TOC entry 206 (class 1255 OID 24825)
+-- Name: Add_Comments(text, integer, integer); Type: FUNCTION; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE FUNCTION "Food Advisor"."Add_Comments"(cmnt text, rvw integer, cus integer) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+
+declare
+cnt integer;
+begin
+select max(C,"Comment Id") into cnt from "Food Advisor"."Comments" C;
+if(cnt is null) then
+	cnt := 0;
+end if;
+cnt := cnt + 1;
+insert into "Food Advisor"."Comments" values(cnt,cmnt,rvw,cus);
+return true;
+end;
+$$;
+
+
+ALTER FUNCTION "Food Advisor"."Add_Comments"(cmnt text, rvw integer, cus integer) OWNER TO postgres;
+
+--
+-- TOC entry 209 (class 1255 OID 24636)
+-- Name: Add_Food(text, integer, integer, integer); Type: FUNCTION; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE FUNCTION "Food Advisor"."Add_Food"(food_name text, res integer, cus integer, price integer) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+
+declare 
+id integer;
+oid integer;
+ok boolean;
+cck boolean;
+
+begin
+
+ok := true;
+
+cck := exists(select F."Food Id" from "Food Advisor"."Food" F where F."Cuisine Id" = cus and lower(F."Name") = lower(food_name));
+if(cck = false) then
+	select max(F."Food Id") into id from "Food Advisor"."Food" F;
+	if(id is null) then id := 0; end if;
+	id := id + 1;
+	insert into "Food Advisor"."Food" values(id,cus,food_name);
+end if;
+select F."Food Id" into id from "Food Advisor"."Food" F where F."Cuisine Id" = cus and F."Name" = food_name;
+
+cck := exists(select O."Price Id" from "Food Advisor"."Others" O where O."Restaurant Id" = res and O."Food Id" = id);
+if(cck = false) then 
+	select max(O."Price Id") into oid from "Food Advisor"."Others" O;
+	if(oid is null) then oid := 0; end if;
+	oid := oid + 1;
+	insert into "Food Advisor"."Others" values(oid,res,id,price,0.0,0.1);
+	ok := false;
+end if;
+
+return ok;
+
+end;
+
+$$;
+
+
+ALTER FUNCTION "Food Advisor"."Add_Food"(food_name text, res integer, cus integer, price integer) OWNER TO postgres;
+
+--
+-- TOC entry 216 (class 1255 OID 24693)
+-- Name: Create_Restaurant(integer, text, integer, text, text, text, text); Type: FUNCTION; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE FUNCTION "Food Advisor"."Create_Restaurant"(id integer, res text, loc_id integer, contact text, web text, features text, about text) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+
+declare 
+eid integer;
+cnt integer;
+ret boolean;
+cck boolean;
+
+begin
+eid := -1;
+ret := false;
+
+cck := exists(select R."Restaurant Id" from "Food Advisor"."Restaurant" R where R."Owner Id" = id and lower(R."Name") = lower(res));
+
+if(cck = false) then
+	select max(R."Restaurant Id") into cnt from "Food Advisor"."Restaurant" R;
+	if(cnt is null) then cnt := 0; end if;
+	cnt := cnt + 1;
+	insert into "Food Advisor"."Restaurant" values(cnt,loc_id,id,res,contact,web,0.0,0.1,about,features,0.0,0.0,0.0);
+	ret := true;
+end if;
+
+return ret;
+
+end;
+
+$$;
+
+
+ALTER FUNCTION "Food Advisor"."Create_Restaurant"(id integer, res text, loc_id integer, contact text, web text, features text, about text) OWNER TO postgres;
+
+--
+-- TOC entry 224 (class 1255 OID 24776)
+-- Name: Create_Review(integer, integer, text, text, text, text, text, text); Type: FUNCTION; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE FUNCTION "Food Advisor"."Create_Review"(res integer, cus integer, rvw text, pricing text, foodfor text, recommendation text, dt text, tm text) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+
+declare
+cnt integer;
+
+begin
+select max(R."Review Id") into cnt from "Food Advisor"."Review" R;
+if(cnt is null) then cnt := 0; end if;
+cnt := cnt + 1;
+insert into "Food Advisor"."Review" values(cnt,rvw,cus,res,0,0,pricing,recommendation,foodfor,dt,tm);
+
+return true;
+
+end;
+
+$$;
+
+
+ALTER FUNCTION "Food Advisor"."Create_Review"(res integer, cus integer, rvw text, pricing text, foodfor text, recommendation text, dt text, tm text) OWNER TO postgres;
+
+--
+-- TOC entry 212 (class 1255 OID 24764)
+-- Name: Cuisine_Search(text); Type: FUNCTION; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE FUNCTION "Food Advisor"."Cuisine_Search"(cui_name text) RETURNS TABLE(res_name text, food_name text, lcountry text, ldistrict text, larea text, f_price integer, rating double precision, res_id integer)
+    LANGUAGE plpgsql
+    AS $$
+
+declare 
+
+begin
+
+return query (select R."Name" , F."Name" , L."Country" , L."District" , L."Area" , O."Amount" , R."Rating"/R."Total_users" , 
+	R."Restaurant Id" from "Food Advisor"."Location" L join ( 
+	"Food Advisor"."Restaurant" R join ("Food Advisor"."Others" O join ("Food Advisor"."Food" F join "Food Advisor"."Cuisine" C 
+	using ("Cuisine Id")) using ("Food Id")) using ("Restaurant Id")) using ("Location Id") 
+	where lower(C."Name") like lower(cui_name)
+	order by (R."Rating"/R."Total_users") desc, R."Name" asc);
+
+end;
+
+$$;
+
+
+ALTER FUNCTION "Food Advisor"."Cuisine_Search"(cui_name text) OWNER TO postgres;
+
+--
+-- TOC entry 208 (class 1255 OID 24757)
+-- Name: Delete_Restaurant(integer); Type: FUNCTION; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE FUNCTION "Food Advisor"."Delete_Restaurant"(res_id integer) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+
+declare
+
+begin 
+
+delete from "Food Advisor"."Others" O where O."Restaurant Id" = res_id;
+delete from "Food Advisor"."Restaurant" R where R."Restaurant Id" = res_id;
+return true;
+
+end;
+$$;
+
+
+ALTER FUNCTION "Food Advisor"."Delete_Restaurant"(res_id integer) OWNER TO postgres;
+
+--
+-- TOC entry 207 (class 1255 OID 24755)
+-- Name: Delete_Review(integer); Type: FUNCTION; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE FUNCTION "Food Advisor"."Delete_Review"(rid integer) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+
+declare
+
+begin 
+
+delete from "Food Advisor"."Review" R where R."Review Id" = rid;
+return true;
+
+end;
+$$;
+
+
+ALTER FUNCTION "Food Advisor"."Delete_Review"(rid integer) OWNER TO postgres;
+
+--
+-- TOC entry 223 (class 1255 OID 24767)
+-- Name: Food_Search(text); Type: FUNCTION; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE FUNCTION "Food Advisor"."Food_Search"(food_name text) RETURNS TABLE(res_name text, lcountry text, ldiv text, ldis text, larea text, food text, price integer, rating double precision, res_id integer)
+    LANGUAGE plpgsql
+    AS $$
+
+declare 
+
+begin
+
+return query (select R."Name" , L."Country", L."Division", L."District",
+		L."Area", F."Name", O."Amount" , O."Rating"/O."Total_users" , R."Restaurant Id" 
+	from "Food Advisor"."Location" L join 
+	("Food Advisor"."Restaurant" R join ("Food Advisor"."Others" O 
+	join "Food Advisor"."Food" F using ("Food Id")) using("Restaurant Id")) using ("Location Id") 
+	where lower(F."Name") like lower(food_name)
+	order by (O."Rating"/O."Total_users") desc);
+
+end;
+
+$$;
+
+
+ALTER FUNCTION "Food Advisor"."Food_Search"(food_name text) OWNER TO postgres;
+
+--
+-- TOC entry 220 (class 1255 OID 24701)
+-- Name: Get_Location(text, text, text, text, text, text); Type: FUNCTION; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE FUNCTION "Food Advisor"."Get_Location"(cntry text, div text, dis text, area text, hn text, rn text) RETURNS integer
+    LANGUAGE plpgsql
+    AS $$
+declare
+ok boolean;
+id integer;
+cnt integer;
+
+begin
+ok := exists(select L."Location Id" from "Food Advisor"."Location" L where lower(L."Country") = lower(cntry) and lower(L."Division") = lower(div) 
+	     and lower(L."District") = lower(dis) and lower(L."Area") = lower(area) and lower(L."House No") = lower(hn) and lower(L."Road No") = lower(rn));
+if(ok = false) then
+	select max(L."Location Id") into cnt from "Food Advisor"."Location" L;
+	if(cnt is null) then
+		cnt := 0;
+	end if;
+	cnt := cnt + 1;
+	insert into "Food Advisor"."Location" values(cnt,cntry,div,dis,area,hn,rn);
+end if;
+
+select L."Location Id" into id from "Food Advisor"."Location" L where lower(L."Country") = lower(cntry) and lower(L."Division") = lower(div) 
+	     and lower(L."District") = lower(dis) and lower(L."Area") = lower(area) and lower(L."House No") = lower(hn) and lower(L."Road No") = lower(rn);
+return id;
+
+end;
+$$;
+
+
+ALTER FUNCTION "Food Advisor"."Get_Location"(cntry text, div text, dis text, area text, hn text, rn text) OWNER TO postgres;
+
+--
+-- TOC entry 215 (class 1255 OID 24691)
+-- Name: Get_My_Restaurant(integer); Type: FUNCTION; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE FUNCTION "Food Advisor"."Get_My_Restaurant"(oid integer) RETURNS TABLE(res integer, name text, country text, dis text, area text)
+    LANGUAGE plpgsql
+    AS $$
+declare
+
+begin
+return query (select R."Restaurant Id", R."Name", L."Country", L."District", L."Area" 
+	      from "Food Advisor"."Restaurant" R join "Food Advisor"."Location" L using ("Location Id") 
+	      where R."Owner Id" = oid);
+
+end;
+
+$$;
+
+
+ALTER FUNCTION "Food Advisor"."Get_My_Restaurant"(oid integer) OWNER TO postgres;
+
+--
+-- TOC entry 228 (class 1255 OID 24789)
+-- Name: Get_Profile(integer, integer); Type: FUNCTION; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE FUNCTION "Food Advisor"."Get_Profile"(vis_id integer, opt integer) RETURNS TABLE(name text, eml text, phn text, pass text, img text)
+    LANGUAGE plpgsql
+    AS $$
+declare
+
+begin
+if(opt = 1) then
+	return query (select C."Name", C."Email", C."Phone Number", C."Password", C."Ppic" from "Food Advisor"."Customer" C where C."Customer Id" = vis_id);
+else
+	return query (select C."Name", C."Email", C."Phone Number", C."Password", C."Ppic" from "Food Advisor"."Owner" C where C."Owner Id" = vis_id);
+end if;
+
+end;
+
+$$;
+
+
+ALTER FUNCTION "Food Advisor"."Get_Profile"(vis_id integer, opt integer) OWNER TO postgres;
+
+--
+-- TOC entry 225 (class 1255 OID 24787)
+-- Name: Get_Restaurant_Details(integer); Type: FUNCTION; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE FUNCTION "Food Advisor"."Get_Restaurant_Details"(res_id integer) RETURNS TABLE(cus_name text, food_name text, prc integer)
+    LANGUAGE plpgsql
+    AS $$
+
+declare
+
+begin 
+return query (select C."Name" as cus, F."Name", O."Amount" from ("Food Advisor"."Restaurant" R join 
+	     ("Food Advisor"."Others" O join ("Food Advisor"."Food" F join "Food Advisor"."Cuisine" C using("Cuisine Id")) 
+	     using("Food Id")) using("Restaurant Id")) where R."Restaurant Id" = res_id
+	     order by cus asc);
+
+end;
+$$;
+
+
+ALTER FUNCTION "Food Advisor"."Get_Restaurant_Details"(res_id integer) OWNER TO postgres;
+
+--
+-- TOC entry 213 (class 1255 OID 24786)
+-- Name: Get_Restaurant_Info(integer); Type: FUNCTION; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE FUNCTION "Food Advisor"."Get_Restaurant_Info"(res_id integer) RETURNS TABLE(res_name text, country text, dis text, area text, hn text, rn text, cont text, web text, about text, features text, orat double precision, sr double precision, fr double precision, vr double precision)
+    LANGUAGE plpgsql
+    AS $$
+
+declare
+
+begin
+return query(select R."Name", L."Country", L."District", L."Area", L."Road No", L."House No", R."Contact", R."Website",
+	R."About", R."Features", R."Rating"/R."Total_users", R."Service Rating"/R."Total_users", 
+	R."Food Rating"/R."Total_users", R."Value"/R."Total_users" from "Food Advisor"."Restaurant" R join 
+	"Food Advisor"."Location" L using ("Location Id") where R."Restaurant Id" = res_id);
+
+end;
+
+$$;
+
+
+ALTER FUNCTION "Food Advisor"."Get_Restaurant_Info"(res_id integer) OWNER TO postgres;
+
+--
+-- TOC entry 227 (class 1255 OID 24784)
+-- Name: Get_Review(integer, integer); Type: FUNCTION; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE FUNCTION "Food Advisor"."Get_Review"(loc integer, opt integer) RETURNS TABLE(cus_name text, res_name text, rvw text, recom text, ffor text, prc text, laik integer, nlaik integer, rvw_id integer, cus_id integer, res_id integer)
+    LANGUAGE plpgsql
+    AS $$
+
+declare
+
+begin
+if(opt = 1) then
+	return query (select C."Name", R."Name", Rv."Text", Rv."Recommendation", Rv."Food For", Rv."Pricing",
+		Rv."Pos_React", Rv."Neg_React", Rv."Review Id", C."Customer Id",
+	      R."Restaurant Id" from "Food Advisor"."Customer" C join ("Food Advisor"."Review" Rv join 
+	      "Food Advisor"."Restaurant" R using ("Restaurant Id")) using ("Customer Id") where C."Customer Id" = loc);
+else
+	return query (select C."Name", R."Name", Rv."Text", Rv."Recommendation", Rv."Food For", Rv."Pricing",
+		Rv."Pos_React", Rv."Neg_React", Rv."Review Id", C."Customer Id",
+	      R."Restaurant Id" from "Food Advisor"."Customer" C join ("Food Advisor"."Review" Rv join 
+	      "Food Advisor"."Restaurant" R using ("Restaurant Id")) using ("Customer Id") where R."Restaurant Id" = loc);
+end if;
+
+end;
+
+$$;
+
+
+ALTER FUNCTION "Food Advisor"."Get_Review"(loc integer, opt integer) OWNER TO postgres;
+
+--
+-- TOC entry 222 (class 1255 OID 24740)
+-- Name: Log_in(text, text, integer); Type: FUNCTION; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE FUNCTION "Food Advisor"."Log_in"(eml text, psw text, opt integer) RETURNS integer
+    LANGUAGE plpgsql
+    AS $$
+declare
+id integer;
+cck boolean;
+
+begin
+id := -1;
+
+if(opt = 1) then
+	cck := exists(select C."Customer Id" from "Food Advisor"."Customer" C
+		where C."Email" = eml  and C."Password" = psw);
+	if (cck = true) then
+		select C."Customer Id" into id from "Food Advisor"."Customer" C
+		where C."Email" = eml  and C."Password" = psw;
+	end if;
+elsif (opt = 2) then
+	cck := exists(select C."Owner Id" from "Food Advisor"."Owner" C
+		where C."Email" = eml  and C."Password" = psw);
+	if(cck = true) then
+		select C."Owner Id" into id from "Food Advisor"."Owner" C
+		where C."Email" = eml  and C."Password" = psw;
+	end if;
+end if;
+
+return id;
+
+end;
+$$;
+
+
+ALTER FUNCTION "Food Advisor"."Log_in"(eml text, psw text, opt integer) OWNER TO postgres;
+
+--
+-- TOC entry 210 (class 1255 OID 24773)
+-- Name: Restaurant_Search(text); Type: FUNCTION; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE FUNCTION "Food Advisor"."Restaurant_Search"(restaurant_name text) RETURNS TABLE(res_name text, lcountry text, ldistrict text, larea text, rating double precision, res_id integer)
+    LANGUAGE plpgsql
+    AS $$
+
+declare 
+
+begin
+
+return query (select R."Name" , L."Country" , L."District" , L."Area", R."Rating"/R."Total_users" , R."Restaurant Id" 
+	from "Food Advisor"."Restaurant" R join "Food Advisor"."Location" L using("Location Id") 
+	where lower(R."Name") like lower(restaurant_name)
+	order by (R."Rating"/R."Total_users") desc);
+
+end;
+
+$$;
+
+
+ALTER FUNCTION "Food Advisor"."Restaurant_Search"(restaurant_name text) OWNER TO postgres;
+
+--
+-- TOC entry 219 (class 1255 OID 24814)
+-- Name: Review_Reaction_Temp(); Type: FUNCTION; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE FUNCTION "Food Advisor"."Review_Reaction_Temp"() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+declare
+old_react integer;
+new_react integer;
+
+begin
+old_react := OLD."React";
+new_react := NEW."React";
+
+if(new_react = 1) then
+	update "Food Advisor"."Review" R set R."Pos_React" = R."Pos_React" + 1;
+elsif(new_react = -1) then
+	update "Food Advisor"."Review" R set R."Neg_React" = R."Neg_React" + 1;
+end if;
+
+end;$$;
+
+
+ALTER FUNCTION "Food Advisor"."Review_Reaction_Temp"() OWNER TO postgres;
+
+--
+-- TOC entry 211 (class 1255 OID 24782)
+-- Name: Review_Search(text); Type: FUNCTION; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE FUNCTION "Food Advisor"."Review_Search"(rvw_name text) RETURNS TABLE(cus_name text, res_name text, rvw text, recom text, ffor text, prc text, laik integer, nlaik integer, rvw_id integer, cus_id integer, res_id integer)
+    LANGUAGE plpgsql
+    AS $$
+
+declare 
+
+begin
+
+return query (select C."Name", R."Name", Rv."Text", Rv."Recommendation", Rv."Food For", Rv."Pricing",
+		Rv."Pos_React", Rv."Neg_React", Rv."Review Id", C."Customer Id",
+	      R."Restaurant Id" from "Food Advisor"."Customer" C join ("Food Advisor"."Review" Rv join 
+	      "Food Advisor"."Restaurant" R using ("Restaurant Id")) using ("Customer Id") where (lower(C."Name") like lower(rvw_name)) 
+	      or (lower(Rv."Recommendation") like lower(rvw_name)) or (lower(Rv."Food For") like lower(rvw_name))
+	       or (lower(Rv."Pricing") like lower(rvw_name)));
+
+end;
+
+$$;
+
+
+ALTER FUNCTION "Food Advisor"."Review_Search"(rvw_name text) OWNER TO postgres;
+
+--
+-- TOC entry 218 (class 1255 OID 24811)
+-- Name: Review_Update(); Type: FUNCTION; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE FUNCTION "Food Advisor"."Review_Update"() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+declare
+old_react integer;
+new_react integer;
+
+begin
+old_react := OLD."React";
+new_react := NEW."React";
+
+if(old_react = -1 and new_react = 1) then
+	update "Food Advisor"."Review" R set R."Neg_React" = R."Neg_React" - 1;
+	update "Food Advisor"."Review" R set R."Pos_React" = R."Pos_React" + 1;
+elsif(old_react = 1 and new_react = -1) then
+	update "Food Advisor"."Review" R set R."Neg_React" = R."Neg_React" + 1;
+	update "Food Advisor"."Review" R set R."Pos_React" = R."Pos_React" - 1;
+end if;
+
+end;$$;
+
+
+ALTER FUNCTION "Food Advisor"."Review_Update"() OWNER TO postgres;
+
+--
+-- TOC entry 226 (class 1255 OID 24788)
+-- Name: Sign_up(text, text, text, integer, text, text); Type: FUNCTION; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE FUNCTION "Food Advisor"."Sign_up"(name text, eml text, psw text, opt integer, phn text DEFAULT NULL::text, img text DEFAULT NULL::text) RETURNS integer
+    LANGUAGE plpgsql
+    AS $$declare
+id integer;
+cnt integer;
+cck boolean;
+
+begin
+id := -1;
+
+if(opt = 1) then 
+	cck := exists(select C."Customer Id" from "Food Advisor"."Customer" C
+		where C."Email" = eml);
+
+	if(cck = false) then
+		select max(C."Customer Id") into cnt from "Food Advisor"."Customer" C;
+		if(cnt is null) then cnt := 0; end if;
+		cnt := cnt + 1;
+		insert into "Food Advisor"."Customer" values(cnt,name,eml,phn,psw,img);
+		select C."Customer Id" into id from "Food Advisor"."Customer" C
+			where C."Email" = eml;
+	end if;
+elsif(opt = 2) then
+	cck := exists(select C."Owner Id" from "Food Advisor"."Owner" C
+		where C."Email" = eml);
+
+	if(cck = false) then
+		select max(O."Owner Id") into cnt from "Food Advisor"."Owner" O;
+		if(cnt is null) then cnt := 0; end if;
+		cnt := cnt + 1;
+		insert into "Food Advisor"."Owner" values(cnt,name,eml,phn,psw,img);
+		select C."Owner Id" into id from "Food Advisor"."Owner" C
+			where C."Email" = eml;
+	end if;
+end if;
+
+return id;
+
+end;$$;
+
+
+ALTER FUNCTION "Food Advisor"."Sign_up"(name text, eml text, psw text, opt integer, phn text, img text) OWNER TO postgres;
+
+--
+-- TOC entry 214 (class 1255 OID 24806)
+-- Name: Update_React(integer, integer, integer); Type: FUNCTION; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE FUNCTION "Food Advisor"."Update_React"(rid integer, cus integer, react integer) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+
+declare
+id integer;
+
+begin
+select RR."Customer Id" into id from "Food Advisor"."Review_React" RR where RR."Customer Id" = cus;
+if(id is null) then
+	insert into "Food Advisor"."Review_React" values(rid,cus,react);
+else
+	update "Food Advisor"."Review_React" RR set RR."React" = react where RR."Customer Id" = cus and RR."React" <> react;
+end if;
+
+return true;
+
+end;
+
+$$;
+
+
+ALTER FUNCTION "Food Advisor"."Update_React"(rid integer, cus integer, react integer) OWNER TO postgres;
+
+--
+-- TOC entry 221 (class 1255 OID 24824)
+-- Name: Add_Comment(text, integer, integer); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public."Add_Comment"(cmnt text, rvw integer, cus integer) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+
+declare
+cnt integer;
+begin
+select max(C."Comment Id") into cnt from "Food Advisor"."Comments";
+if(cnt is null) THEN
+	cnt := 0;
+end if;
+cnt := cnt + 1;
+
+insert into "Food Advisor"."Comments" values (cnt,cmnt,rvw,cus);
+
+return true;
+
+end;
+$$;
+
+
+ALTER FUNCTION public."Add_Comment"(cmnt text, rvw integer, cus integer) OWNER TO postgres;
+
+--
+-- TOC entry 217 (class 1255 OID 24796)
+-- Name: t_f(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.t_f() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+
+declare
+	var int;
+begin
+	var := new.val;
+	raise notice '%', var;
+	return new;
+end;
+
+$$;
+
+
+ALTER FUNCTION public.t_f() OWNER TO postgres;
+
+SET default_tablespace = '';
+
+SET default_with_oids = false;
+
+--
+-- TOC entry 191 (class 1259 OID 24727)
+-- Name: Comments; Type: TABLE; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE TABLE "Food Advisor"."Comments" (
+    "Comment Id" integer NOT NULL,
+    info text,
+    "Review Id" integer NOT NULL,
+    "Customer Id" integer
+);
+
+
+ALTER TABLE "Food Advisor"."Comments" OWNER TO postgres;
+
+--
+-- TOC entry 187 (class 1259 OID 16494)
+-- Name: Cuisine; Type: TABLE; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE TABLE "Food Advisor"."Cuisine" (
+    "Cuisine Id" integer NOT NULL,
+    "Name" text NOT NULL,
+    "Image" bytea
+);
+
+
+ALTER TABLE "Food Advisor"."Cuisine" OWNER TO postgres;
+
+--
+-- TOC entry 188 (class 1259 OID 16568)
+-- Name: Customer; Type: TABLE; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE TABLE "Food Advisor"."Customer" (
+    "Customer Id" integer NOT NULL,
+    "Name" text NOT NULL,
+    "Email" text NOT NULL,
+    "Phone Number" text NOT NULL,
+    "Password" text NOT NULL,
+    "Ppic" text
+);
+
+
+ALTER TABLE "Food Advisor"."Customer" OWNER TO postgres;
+
+--
+-- TOC entry 192 (class 1259 OID 24741)
+-- Name: Events; Type: TABLE; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE TABLE "Food Advisor"."Events" (
+    "Event Id" integer NOT NULL,
+    "Restaurant Id" integer NOT NULL,
+    "Name" text,
+    "Daate" date,
+    "Tiime" time without time zone
+);
+
+
+ALTER TABLE "Food Advisor"."Events" OWNER TO postgres;
+
+--
+-- TOC entry 185 (class 1259 OID 16484)
+-- Name: Food; Type: TABLE; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE TABLE "Food Advisor"."Food" (
+    "Food Id" integer NOT NULL,
+    "Cuisine Id" integer NOT NULL,
+    "Name" text NOT NULL
+);
+
+
+ALTER TABLE "Food Advisor"."Food" OWNER TO postgres;
+
+--
+-- TOC entry 184 (class 1259 OID 16478)
+-- Name: Location; Type: TABLE; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE TABLE "Food Advisor"."Location" (
+    "Location Id" integer NOT NULL,
+    "Country" text NOT NULL,
+    "Division" text NOT NULL,
+    "District" text NOT NULL,
+    "Area" text NOT NULL,
+    "House No" text NOT NULL,
+    "Road No" text NOT NULL
+);
+
+
+ALTER TABLE "Food Advisor"."Location" OWNER TO postgres;
+
+--
+-- TOC entry 186 (class 1259 OID 16489)
+-- Name: Others; Type: TABLE; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE TABLE "Food Advisor"."Others" (
+    "Price Id" integer NOT NULL,
+    "Restaurant Id" integer NOT NULL,
+    "Food Id" integer NOT NULL,
+    "Amount" integer NOT NULL,
+    "Rating" double precision,
+    "Total_users" double precision
+);
+
+
+ALTER TABLE "Food Advisor"."Others" OWNER TO postgres;
+
+--
+-- TOC entry 182 (class 1259 OID 16462)
+-- Name: Owner; Type: TABLE; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE TABLE "Food Advisor"."Owner" (
+    "Owner Id" integer NOT NULL,
+    "Name" text NOT NULL,
+    "Email" text NOT NULL,
+    "Phone Number" text NOT NULL,
+    "Password" text NOT NULL,
+    "Ppic" bytea
+);
+
+
+ALTER TABLE "Food Advisor"."Owner" OWNER TO postgres;
+
+--
+-- TOC entry 190 (class 1259 OID 24706)
+-- Name: Res_Rev Image; Type: TABLE; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE TABLE "Food Advisor"."Res_Rev Image" (
+    "Image Id" integer NOT NULL,
+    "Restaurant Id" integer NOT NULL,
+    "Review Id" integer NOT NULL,
+    input bytea
+);
+
+
+ALTER TABLE "Food Advisor"."Res_Rev Image" OWNER TO postgres;
+
+--
+-- TOC entry 183 (class 1259 OID 16470)
+-- Name: Restaurant; Type: TABLE; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE TABLE "Food Advisor"."Restaurant" (
+    "Restaurant Id" integer NOT NULL,
+    "Location Id" integer NOT NULL,
+    "Owner Id" integer NOT NULL,
+    "Name" text NOT NULL,
+    "Contact" text,
+    "Website" text,
+    "Rating" double precision,
+    "Total_users" double precision,
+    "About" text,
+    "Features" text,
+    "Food Rating" double precision,
+    "Service Rating" double precision,
+    "Value" double precision
+);
+
+
+ALTER TABLE "Food Advisor"."Restaurant" OWNER TO postgres;
+
+--
+-- TOC entry 189 (class 1259 OID 16589)
+-- Name: Review; Type: TABLE; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE TABLE "Food Advisor"."Review" (
+    "Review Id" integer NOT NULL,
+    "Text" text NOT NULL,
+    "Customer Id" integer NOT NULL,
+    "Restaurant Id" integer NOT NULL,
+    "Pos_React" integer,
+    "Neg_React" integer,
+    "Pricing" text,
+    "Recommendation" text,
+    "Food For" text,
+    "Date" text,
+    "Time" text
+);
+
+
+ALTER TABLE "Food Advisor"."Review" OWNER TO postgres;
+
+--
+-- TOC entry 193 (class 1259 OID 24799)
+-- Name: Review_Reaction; Type: TABLE; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE TABLE "Food Advisor"."Review_Reaction" (
+    "Review Id" text NOT NULL,
+    "Customer Id" text NOT NULL,
+    "Reaction" integer
+);
+
+
+ALTER TABLE "Food Advisor"."Review_Reaction" OWNER TO postgres;
+
+--
+-- TOC entry 2275 (class 0 OID 24727)
+-- Dependencies: 191
+-- Data for Name: Comments; Type: TABLE DATA; Schema: Food Advisor; Owner: postgres
+--
+
+COPY "Food Advisor"."Comments" ("Comment Id", info, "Review Id", "Customer Id") FROM stdin;
+\.
+
+
+--
+-- TOC entry 2271 (class 0 OID 16494)
+-- Dependencies: 187
+-- Data for Name: Cuisine; Type: TABLE DATA; Schema: Food Advisor; Owner: postgres
+--
+
+COPY "Food Advisor"."Cuisine" ("Cuisine Id", "Name", "Image") FROM stdin;
+1	Afghani	\N
+2	African	\N
+3	American	\N
+4	Arabic	\N
+5	Armenian	\N
+6	Asian	\N
+7	Bangladeshi	\N
+8	Bar	\N
+9	Barbecue	\N
+10	Beijing	\N
+11	Specialties	\N
+12	Brazilian	\N
+13	British	\N
+14	Cafe	\N
+15	Cajun	\N
+16	&	\N
+17	Creole	\N
+18	Cantonese	\N
+19	Central	\N
+20	Asian	\N
+21	Central	\N
+22	European	\N
+23	Chilean	\N
+24	Chinese	\N
+25	Contemporary	\N
+26	Deli	\N
+27	Diner	\N
+28	Eastern	\N
+29	European	\N
+30	European	\N
+32	Food	\N
+33	French	\N
+34	Fusion	\N
+35	Gastropub	\N
+36	Greek	\N
+37	Grill	\N
+38	Healthy	\N
+39	Hong	\N
+40	Kong	\N
+41	Indian	\N
+42	Indonesian	\N
+43	International	\N
+44	Italian	\N
+45	Japanese	\N
+46	Korean	\N
+47	Latin	\N
+48	Lebanese	\N
+49	Malaysian	\N
+50	Mediterranean	\N
+51	Mexican	\N
+52	Middle	\N
+53	Eastern	\N
+54	Minority	\N
+55	Chinese	\N
+56	Pakistani	\N
+57	Persian	\N
+58	Pizza	\N
+59	Portuguese	\N
+60	Pub	\N
+61	Seafood	\N
+62	Shanghai	\N
+63	Singaporean	\N
+64	Soups	\N
+65	South	\N
+66	American	\N
+67	Spanish	\N
+69	Lankan	\N
+70	Steakhouse	\N
+72	Food	\N
+73	Sushi	\N
+74	Szechuan	\N
+75	Thai	\N
+76	Turkish	\N
+77	Bagels	\N
+78	Bento	\N
+80	Box)	\N
+81	Bibimbap	\N
+82	Burrito	\N
+83	Cheesecake	\N
+84	Chicken	\N
+85	Wings	\N
+86	Crab	\N
+87	Dim	\N
+88	Sum	\N
+89	Doner	\N
+90	Kebab	\N
+31	Fast Food	\N
+79	Lunch Box	\N
+71	Street Food	\N
+68	Srilankan	\N
+91	Mughal	\N
+\.
+
+
+--
+-- TOC entry 2272 (class 0 OID 16568)
+-- Dependencies: 188
+-- Data for Name: Customer; Type: TABLE DATA; Schema: Food Advisor; Owner: postgres
+--
+
+COPY "Food Advisor"."Customer" ("Customer Id", "Name", "Email", "Phone Number", "Password", "Ppic") FROM stdin;
+16	sutapa	sutapa@gmail.com	s	s	c14.jpg
+17	Ritu Das	ritu.cute@gmail.com	01615997661	cutest	c15.jpg
+1	Mimsadi Islam Ana	imimsadi@gmail.com	01678380114	anaconda	c1.jpg
+2	Kazi Hasan Ibn Arif Efaz	efaz701815@gmail.com	01521402031	taksarang	c2.jpg
+3	Ishrat Jahan Eliza	elizan@gmail.com	01625997961	papon114	c3.jpg
+4	Ritu Rani Dash	alienpapon090@gmail.com	01625997661	pap2n112	c4.jpg
+18	Rakib	1605010@ugrad.cse.buet.ac.bd	0101	1234	c16.jpg
+19	nazia_shounen	naziaafreen@yahoo.com	01714593264	IAMNAZIA	c17.jpg
+15	ruhan	1605037@ugrad.cse.buet.ac.bd	01234	123	c23.jpg
+26	Tripto	tripto@gmail.com	01521343423	trip	c27.jpg
+25	Sakib	sakibsir@gmail.com	01521402032	sakib	c26.jpg
+9	Mahazabin Nahar Proma	proma107@gmail.com	01625997691	proma	c8.jpg
+13	eliza	1605089@ugrad.cse.buet.ac.bd	01625997662	12345678	c12.jpg
+20	KAI_Monmoy	monmoy@email.com	123456789	paponjitrathi	c19.jpg
+21	rathijitpapon	alienpapon@gmail.com	01625997662	a	c20.jpg
+22	Rathijit Papon	something110@gmail.com	01714593264	papon112	c21.jpg
+23	Fidelity	fidelity259@qq.ag	01714593264	fuckmeplease	c22.jpg
+24	ramu	eshaneechowdhury@GMAIL.COM	01795356721	RATHIJIT	c24.jpg
+5	Rafid	rafidiot@gmail.com	01714593264	rafid	c7.jpg
+6	Fahim Morshed	alienpapon011@gmail.com	01625997261	pan112	c5.jpg
+7	Prayas Chakma	alienpapo@gmail.com	01625997631	pap112	c6.jpg
+8	Rafid Bin Mostofa	alienpanid009@gmail.com	01625997611	pn112	c7.jpg
+10	Prachi Desai	alnpapon009@gmail.com	01625990661	papon11	c9.jpg
+12	_Nyu_	1605032@ugrad.cse.buet.ac.bd	01625997661	papon112	c10.jpg
+14	eliza	elizan009@gmail.com	01625997662	papon112	c11.jpg
+\.
+
+
+--
+-- TOC entry 2276 (class 0 OID 24741)
+-- Dependencies: 192
+-- Data for Name: Events; Type: TABLE DATA; Schema: Food Advisor; Owner: postgres
+--
+
+COPY "Food Advisor"."Events" ("Event Id", "Restaurant Id", "Name", "Daate", "Tiime") FROM stdin;
+\.
+
+
+--
+-- TOC entry 2269 (class 0 OID 16484)
+-- Dependencies: 185
+-- Data for Name: Food; Type: TABLE DATA; Schema: Food Advisor; Owner: postgres
+--
+
+COPY "Food Advisor"."Food" ("Food Id", "Cuisine Id", "Name") FROM stdin;
+16	7	Shorse Ilish 
+17	7	Lalshak Vaji
+18	7	Taki Macher Vorta
+19	24	Beef Sizling
+20	24	Chicken SIzling
+21	24	Chowmein
+22	58	Fish Pizza
+23	58	Four Season Pizza
+24	58	Naga Pizza
+25	90	Boti Kabab
+26	90	Shik Kabab
+27	90	Reshmi Kabab
+28	31	Chicken Burger
+29	31	Beef Burger
+30	31	Bbq Burger
+1	31	Chicken Burger
+2	31	Beef Burger
+3	31	Mutton Burger
+4	31	Chicken Fry
+5	91	Mutton Khicuri
+6	43	Pasta Basta
+7	51	Mexican Pasta
+8	24	BBQ Fried Rice
+9	24	Crispy Fried Rice
+10	31	Chicken Cheese Burger
+11	31	Love Sub Sanduice
+12	31	Chicken Shwarma
+13	90	Chicken Chap
+14	90	Beef Chap
+15	90	Kathi Kabab
+\.
+
+
+--
+-- TOC entry 2268 (class 0 OID 16478)
+-- Dependencies: 184
+-- Data for Name: Location; Type: TABLE DATA; Schema: Food Advisor; Owner: postgres
+--
+
+COPY "Food Advisor"."Location" ("Location Id", "Country", "Division", "District", "Area", "House No", "Road No") FROM stdin;
+1	Bangladesh	Dhaka	Dhaka	Lalbagh	20B	18A
+2	Bangladesh	Dhaka	Dhaka	Dhanmondi	23	15
+3	Bangladesh	Dhaka	Dhaka	Dhanmondi	32	10
+4	Bangladesh	Dhaka	Dhaka	Dhanmondi	10	9A
+5	Bangladesh	Dhaka	Dhaka	Dhanmondi	10	13A
+6	Bangladesh	Dhaka	Dhaka	Lalbag	24	15
+7	Bangladesh	Dhaka	Dhaka	Lalbag	1	14
+8	Bangladesh	Dhaka	Dhaka	Lalbag	3	3
+9	Bangladesh	Dhaka	Dhaka	Lalbag	67	2
+10	Bangladesh	Dhaka	Dhaka	Lalbag	129	11
+11	Bangladesh	Dhaka	Dhaka	Bangla Motor	20B	114 Kazi Nazrul Islam Aveneu
+12	Bangladesh	Chittagong	Chittagong	Gulzar	13	13 Gulzar Mor
+13	Bangladesh	Chittagong	Chittagong	Gulzar	12	13 Gulzar Mor
+18	Bangladesh	Chittagong	Chittagong	Chittagong	50	Tiger Mor
+17	Bangladesh	Rajshahi	Rajshahi	Rajshahi	12	Circuit Road
+16	Bangladesh	Chittagong	Agrabad	Agrabad	11	Agrabad
+15	Bangladesh	Chittagong	Chittagong	Gulzar	12	13
+19	Bangladesh	Dhaka	Madaripur	Kalkini	23	Macher Bazar
+20	Bangladesh	Dhaka	Madaripur	Madaripur	22	Sodor Road
+14	Bangladesh	Chittagong	Chittagong	Gulzar	14	13 Gulzar mor
+\.
+
+
+--
+-- TOC entry 2270 (class 0 OID 16489)
+-- Dependencies: 186
+-- Data for Name: Others; Type: TABLE DATA; Schema: Food Advisor; Owner: postgres
+--
+
+COPY "Food Advisor"."Others" ("Price Id", "Restaurant Id", "Food Id", "Amount", "Rating", "Total_users") FROM stdin;
+1	1	1	200	0	0.100000000000000006
+2	1	2	220	0	0.100000000000000006
+3	1	3	280	0	0.100000000000000006
+4	1	4	80	0	0.100000000000000006
+5	3	5	120	0	0.100000000000000006
+6	4	6	300	0	0.100000000000000006
+7	4	7	250	0	0.100000000000000006
+8	18	8	120	0	0.100000000000000006
+9	18	9	100	0	0.100000000000000006
+10	18	1	150	0	0.100000000000000006
+11	18	10	170	0	0.100000000000000006
+12	18	11	100	0	0.100000000000000006
+13	18	12	90	0	0.100000000000000006
+17	2	1	180	0	0.100000000000000006
+18	2	2	180	0	0.100000000000000006
+19	1	29	170	4	100
+20	1	30	175	4	23
+21	1	28	185	4	22
+22	1	23	600	4	234
+23	1	22	650	4	22
+24	1	24	675	4	23
+25	1	21	230	4	2
+26	1	20	400	4	23
+27	1	19	450	4	234
+14	18	13	100	0	0.100000000000000006
+15	18	14	80	0	0.100000000000000006
+16	18	15	25	0	0.100000000000000006
+\.
+
+
+--
+-- TOC entry 2266 (class 0 OID 16462)
+-- Dependencies: 182
+-- Data for Name: Owner; Type: TABLE DATA; Schema: Food Advisor; Owner: postgres
+--
+
+COPY "Food Advisor"."Owner" ("Owner Id", "Name", "Email", "Phone Number", "Password", "Ppic") FROM stdin;
+1	Ana	ana75@gmail.com	01535762763	hehehe	\N
+2	Rathi	ana735@gmail.com	01535763763	heheh	\N
+3	Efaz Shaheb	anna75@gmail.com	01545762763	ehehe	\N
+4	Eliza Majhi	anas75@gmail.com	01555762763	hehe	\N
+5	Anannya Samiha	ana175@gmail.com	01835762763	ehe	\N
+6	Ananda Roy	ana752@gmail.com	01735762763	heheshe	\N
+7	Anayet Hossain	ana745@gmail.com	01635762763	haehehe	\N
+8	Anamika Sethi	ana795@gmail.com	01935762763	hehcehe	\N
+9	Nafis Irtiza Tripto	ana750@gmail.com	01535662763	hehehez	\N
+10	Rakib Sarkar	ana7509@gmail.com	01512762763	hesshehe	\N
+11	$username	$email	$contact	$password	\N
+12	_Nyu_	1605032@ugrad.cse.buet.ac.bd	01625997661	papon112	\N
+13	fuckmeinthepussy	fuckpussy@yopmail.com	01714593264	rathifuck	\N
+\.
+
+
+--
+-- TOC entry 2274 (class 0 OID 24706)
+-- Dependencies: 190
+-- Data for Name: Res_Rev Image; Type: TABLE DATA; Schema: Food Advisor; Owner: postgres
+--
+
+COPY "Food Advisor"."Res_Rev Image" ("Image Id", "Restaurant Id", "Review Id", input) FROM stdin;
+\.
+
+
+--
+-- TOC entry 2267 (class 0 OID 16470)
+-- Dependencies: 183
+-- Data for Name: Restaurant; Type: TABLE DATA; Schema: Food Advisor; Owner: postgres
+--
+
+COPY "Food Advisor"."Restaurant" ("Restaurant Id", "Location Id", "Owner Id", "Name", "Contact", "Website", "Rating", "Total_users", "About", "Features", "Food Rating", "Service Rating", "Value") FROM stdin;
+2	1	3	Chillox	01718331343	https://www.facebook.com/chillox.dhanmondi	0	0.100000000000000006	When hunger strikes, just pick up the phone and call! Get your favourite burgers at home today! Call 01844-222888 and order now!	papon samjho ishare	0	0	0
+1	1	1	Pizza King	01625997661	www.pizzaking.com	0	0.100000000000000006	When hunger strikes, just pick up the phone and call! Get your favourite burgers at home today! Call 01844-222888 and order now!	feature	0	0	0
+3	1	5	Star Hotel & Kabab	01718331143	https://www.facebook.com/starkabab	0	0.100000000000000006	When hunger strikes, just pick up the phone and call! Get your favourite burgers at home today! Call 01844-222888 and order now!	papon samjho ishare	0	0	0
+4	4	3	Pasta State	01718331340	https://www.facebook.com/pastastate	0	0.100000000000000006	When hunger strikes, just pick up the phone and call! Get your favourite burgers at home today! Call 01844-222888 and order now!	papon samjho ishare	0	0	0
+5	5	6	Alfresco	01718531343	www.alfresco.com	0	0.100000000000000006	When hunger strikes, just pick up the phone and call! Get your favourite burgers at home today! Call 01844-222888 and order now!	papon samjho ishare	0	0	0
+6	7	7	Take Out	01718631343	www.takeout.com	0	0.100000000000000006	When hunger strikes, just pick up the phone and call! Get your favourite burgers at home today! Call 01844-222888 and order now!	papon samjho ishare	0	0	0
+7	8	3	Crimson Cup	01718371343	www.crimsoncup.com	0	0.100000000000000006	When hunger strikes, just pick up the phone and call! Get your favourite burgers at home today! Call 01844-222888 and order now!	papon samjho ishare	0	0	0
+8	6	9	Handi	01718931343	www.handi.com	0	0.100000000000000006	When hunger strikes, just pick up the phone and call! Get your favourite burgers at home today! Call 01844-222888 and order now!	papon samjho ishare	0	0	0
+9	9	10	Green Lounge Restaurant	01714331343	www.greenlounge.com	0	0.100000000000000006	When hunger strikes, just pick up the phone and call! Get your favourite burgers at home today! Call 01844-222888 and order now!	papon samjho ishare	0	0	0
+10	6	9	Royal Cafe	01712331343	www.royalcafe.com	0	0.100000000000000006	When hunger strikes, just pick up the phone and call! Get your favourite burgers at home today! Call 01844-222888 and order now!	papon samjho ishare	0	0	0
+11	9	1	Bluemoon Restaurant	01718431343	www.bluemoonrestaurant.com	0	0.100000000000000006	When hunger strikes, just pick up the phone and call! Get your favourite burgers at home today! Call 01844-222888 and order now!	papon samjho ishare	0	0	0
+12	10	2	Mr.Burger	01718355343	www.burgermr.com	0	0.100000000000000006	When hunger strikes, just pick up the phone and call! Get your favourite burgers at home today! Call 01844-222888 and order now!	papon samjho ishare	0	0	0
+13	1	5	Cafe Darbar	01715551343	www.dar.com	0	0.100000000000000006	When hunger strikes, just pick up the phone and call! Get your favourite burgers at home today! Call 01844-222888 and order now!	papon samjho ishare	0	0	0
+14	2	7	Secret Recipe	01918331343	www.secretrecipe.com	0	0.100000000000000006	When hunger strikes, just pick up the phone and call! Get your favourite burgers at home today! Call 01844-222888 and order now!	papon samjho ishare	0	0	0
+15	3	9	Plate 21	01618331343	www.plate21.com	0	0.100000000000000006	When hunger strikes, just pick up the phone and call! Get your favourite burgers at home today! Call 01844-222888 and order now!	papon samjho ishare	0	0	0
+16	2	11	Bismillah Kabab Ghar	01218331343	www.bismillahkakabghar.com	0	0.100000000000000006	When hunger strikes, just pick up the phone and call! Get your favourite burgers at home today! Call 01844-222888 and order now!	papon samjho ishare	0	0	0
+17	1	12	Westin	01763331343	www.westin.com	0	0.100000000000000006	When hunger strikes, just pick up the phone and call! Get your favourite burgers at home today! Call 01844-222888 and order now!	papon samjho ishare	0	0	0
+18	4	8	Food Fair	01708331343	www.foodfair.com	0	0.100000000000000006	When hunger strikes, just pick up the phone and call! Get your favourite burgers at home today! Call 01844-222888 and order now!	papon samjho ishare	0	0	0
+19	10	6	Pizza Inn	01718331043	www.pizzainn.com	0	0.100000000000000006	When hunger strikes, just pick up the phone and call! Get your favourite burgers at home today! Call 01844-222888 and order now!	papon samjho ishare	0	0	0
+20	11	1	Green Lounge	01625997662	www.greenloungebd.com	0	0.100000000000000006	Hi...	Self Cooking,reservation,parking,alcohol,credit-card,free-wifi,takeout	0	0	0
+21	14	1	Sadia's Kitchen	01521402031	www.sadiaskitchen.com	4	10	food is love	free wi-fi	4	4	4
+22	14	2	Bismillah Fuchka	01521403022	www.bismilla.com	4	56	fuchka hoye jak mama	sitting 	5	4	4
+23	18	3	Khana Khazana	01621402031	www.khanakhazana.com	4	20	topa topa topa	free wi-fi	5	4	5
+\.
+
+
+--
+-- TOC entry 2273 (class 0 OID 16589)
+-- Dependencies: 189
+-- Data for Name: Review; Type: TABLE DATA; Schema: Food Advisor; Owner: postgres
+--
+
+COPY "Food Advisor"."Review" ("Review Id", "Text", "Customer Id", "Restaurant Id", "Pos_React", "Neg_React", "Pricing", "Recommendation", "Food For", "Date", "Time") FROM stdin;
+1	This is a good experience!! Their food is so crispy and yummy!! I wanna go again..... \r\n\r\n#food_is_always_love\r\n<3 	1	1	0	0	Mid Range	Pasta was just joss....	Dinner	2019-02-01	20:00
+8	Taste was good.But I had food poisoning :( :( :( and suffered a lot !!!	2	21	3	6	Mid Range	Swarma	Snacks	2018-08-13	16:00
+9	very yummyyY!!!!!!!!!	7	13	5	1	A bit HIGH	 Pasta 	other	2018-12-13	17:00
+3	nnot so good	19	1	0	0	Expensive	lessen your price nigga	Snacks	2019-02-21	13:00
+10	Pasta mindblowing!!!!!!	1	13	5	1	Mid Range	Chef Special Pasta	all	2019-02-01	17:00
+11	uncommon	7	23	5	1	Mid Range	Topa	Snacks	2019-02-01	16:00
+12	never ate such thing in my life	7	22	5	1	Mid Range	Chicken Fuchka	Snacks	2019-02-01	17:00
+13	Cake so softtttt	17	14	4	1	Expensive	Cheese Cake 	Desserts	2019-02-01	18:00
+4	It was a nice experience!!\r\n\r\nTheir Pasta Basta is just joss....  Service is also appreciable......	1	4	0	0	Mid Range	Pasta Basta	Dinner	2019-02-22	20:00
+7	oh God !!!!	24	1	0	0	Mid Range	GJFJ FMFHV	Lunch	2019-02-13	13:00
+6	umm so so	23	2	0	0	Expensive	-_- -_- 	Lunch	2019-02-14	13:00
+5	BURGER E TARA EKHON MANGSHO KOM DEY!\r\nCHEESE E O KIPTAMI KORE....\r\nONEKER KASE SHUNSI BANGLA CHEESE DEY SHALA RA....\r\nAR JABO NAH......	20	6	0	0	Expensive	all food not up to mark	Other	2019-02-28	01:15
+2	so so	16	1	0	0	Mid Range	:/ -_- -_- 	Lunch	2019-02-01	13:00
+14	biriyani so yumm	17	13	4	1	Mid Range	Biriyani yumm yumm	Lunch	2019-02-02	16:00
+\.
+
+
+--
+-- TOC entry 2277 (class 0 OID 24799)
+-- Dependencies: 193
+-- Data for Name: Review_Reaction; Type: TABLE DATA; Schema: Food Advisor; Owner: postgres
+--
+
+COPY "Food Advisor"."Review_Reaction" ("Review Id", "Customer Id", "Reaction") FROM stdin;
+\.
+
+
+--
+-- TOC entry 2135 (class 2606 OID 24734)
+-- Name: Comments_pkey; Type: CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Comments"
+    ADD CONSTRAINT "Comments_pkey" PRIMARY KEY ("Comment Id");
+
+
+--
+-- TOC entry 2121 (class 2606 OID 16642)
+-- Name: Cuisine_Cuisine Id_Name_key; Type: CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Cuisine"
+    ADD CONSTRAINT "Cuisine_Cuisine Id_Name_key" UNIQUE ("Cuisine Id", "Name");
+
+
+--
+-- TOC entry 2123 (class 2606 OID 16501)
+-- Name: Cuisine_pkey; Type: CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Cuisine"
+    ADD CONSTRAINT "Cuisine_pkey" PRIMARY KEY ("Cuisine Id");
+
+
+--
+-- TOC entry 2125 (class 2606 OID 16640)
+-- Name: Customer_Email_Customer Id_key; Type: CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Customer"
+    ADD CONSTRAINT "Customer_Email_Customer Id_key" UNIQUE ("Email", "Customer Id");
+
+
+--
+-- TOC entry 2127 (class 2606 OID 16603)
+-- Name: Customer_pkey; Type: CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Customer"
+    ADD CONSTRAINT "Customer_pkey" PRIMARY KEY ("Customer Id");
+
+
+--
+-- TOC entry 2137 (class 2606 OID 24748)
+-- Name: Events_pkey; Type: CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Events"
+    ADD CONSTRAINT "Events_pkey" PRIMARY KEY ("Event Id");
+
+
+--
+-- TOC entry 2113 (class 2606 OID 16656)
+-- Name: Food_Food Id_key; Type: CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Food"
+    ADD CONSTRAINT "Food_Food Id_key" UNIQUE ("Food Id");
+
+
+--
+-- TOC entry 2115 (class 2606 OID 16488)
+-- Name: Food_pkey; Type: CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Food"
+    ADD CONSTRAINT "Food_pkey" PRIMARY KEY ("Food Id");
+
+
+--
+-- TOC entry 2109 (class 2606 OID 16646)
+-- Name: Location_Location Id_key; Type: CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Location"
+    ADD CONSTRAINT "Location_Location Id_key" UNIQUE ("Location Id");
+
+
+--
+-- TOC entry 2111 (class 2606 OID 16610)
+-- Name: Location_pkey; Type: CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Location"
+    ADD CONSTRAINT "Location_pkey" PRIMARY KEY ("Location Id");
+
+
+--
+-- TOC entry 2117 (class 2606 OID 16648)
+-- Name: Others_Price Id_key; Type: CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Others"
+    ADD CONSTRAINT "Others_Price Id_key" UNIQUE ("Price Id");
+
+
+--
+-- TOC entry 2119 (class 2606 OID 16493)
+-- Name: Others_pkey; Type: CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Others"
+    ADD CONSTRAINT "Others_pkey" PRIMARY KEY ("Price Id");
+
+
+--
+-- TOC entry 2101 (class 2606 OID 16650)
+-- Name: Owner_Owner Id_Email_key; Type: CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Owner"
+    ADD CONSTRAINT "Owner_Owner Id_Email_key" UNIQUE ("Owner Id", "Email");
+
+
+--
+-- TOC entry 2103 (class 2606 OID 16466)
+-- Name: Owner_pkey; Type: CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Owner"
+    ADD CONSTRAINT "Owner_pkey" PRIMARY KEY ("Owner Id");
+
+
+--
+-- TOC entry 2133 (class 2606 OID 24713)
+-- Name: Res_Rev Image_pkey; Type: CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Res_Rev Image"
+    ADD CONSTRAINT "Res_Rev Image_pkey" PRIMARY KEY ("Image Id");
+
+
+--
+-- TOC entry 2105 (class 2606 OID 16652)
+-- Name: Restaurant_Restaurant Id_key; Type: CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Restaurant"
+    ADD CONSTRAINT "Restaurant_Restaurant Id_key" UNIQUE ("Restaurant Id");
+
+
+--
+-- TOC entry 2107 (class 2606 OID 16477)
+-- Name: Restaurant_pkey; Type: CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Restaurant"
+    ADD CONSTRAINT "Restaurant_pkey" PRIMARY KEY ("Restaurant Id");
+
+
+--
+-- TOC entry 2129 (class 2606 OID 24652)
+-- Name: Review_Review Id_key; Type: CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Review"
+    ADD CONSTRAINT "Review_Review Id_key" UNIQUE ("Review Id");
+
+
+--
+-- TOC entry 2131 (class 2606 OID 24645)
+-- Name: Review_pkey; Type: CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Review"
+    ADD CONSTRAINT "Review_pkey" PRIMARY KEY ("Review Id");
+
+
+--
+-- TOC entry 2150 (class 2620 OID 24812)
+-- Name: reaction_update; Type: TRIGGER; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE TRIGGER reaction_update AFTER UPDATE ON "Food Advisor"."Review_Reaction" FOR EACH ROW EXECUTE PROCEDURE "Food Advisor"."Review_Update"();
+
+
+--
+-- TOC entry 2151 (class 2620 OID 24816)
+-- Name: reaction_update_temp; Type: TRIGGER; Schema: Food Advisor; Owner: postgres
+--
+
+CREATE TRIGGER reaction_update_temp AFTER INSERT ON "Food Advisor"."Review_Reaction" FOR EACH ROW EXECUTE PROCEDURE "Food Advisor"."Review_Reaction_Temp"();
+
+
+--
+-- TOC entry 2148 (class 2606 OID 24817)
+-- Name: Comments_Customer Id_fkey; Type: FK CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Comments"
+    ADD CONSTRAINT "Comments_Customer Id_fkey" FOREIGN KEY ("Customer Id") REFERENCES "Food Advisor"."Customer"("Customer Id");
+
+
+--
+-- TOC entry 2147 (class 2606 OID 24735)
+-- Name: Comments_Review Id_fkey; Type: FK CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Comments"
+    ADD CONSTRAINT "Comments_Review Id_fkey" FOREIGN KEY ("Review Id") REFERENCES "Food Advisor"."Review"("Review Id");
+
+
+--
+-- TOC entry 2149 (class 2606 OID 24749)
+-- Name: Events_Restaurant Id_fkey; Type: FK CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Events"
+    ADD CONSTRAINT "Events_Restaurant Id_fkey" FOREIGN KEY ("Restaurant Id") REFERENCES "Food Advisor"."Restaurant"("Restaurant Id");
+
+
+--
+-- TOC entry 2140 (class 2606 OID 16604)
+-- Name: Food_Cuisine Id_fkey; Type: FK CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Food"
+    ADD CONSTRAINT "Food_Cuisine Id_fkey" FOREIGN KEY ("Cuisine Id") REFERENCES "Food Advisor"."Cuisine"("Cuisine Id");
+
+
+--
+-- TOC entry 2141 (class 2606 OID 16611)
+-- Name: Others_Food Id_fkey; Type: FK CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Others"
+    ADD CONSTRAINT "Others_Food Id_fkey" FOREIGN KEY ("Food Id") REFERENCES "Food Advisor"."Food"("Food Id");
+
+
+--
+-- TOC entry 2142 (class 2606 OID 16616)
+-- Name: Others_Restaurant Id_fkey; Type: FK CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Others"
+    ADD CONSTRAINT "Others_Restaurant Id_fkey" FOREIGN KEY ("Restaurant Id") REFERENCES "Food Advisor"."Restaurant"("Restaurant Id");
+
+
+--
+-- TOC entry 2145 (class 2606 OID 24714)
+-- Name: Res_Rev Image_Restaurant Id_fkey; Type: FK CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Res_Rev Image"
+    ADD CONSTRAINT "Res_Rev Image_Restaurant Id_fkey" FOREIGN KEY ("Restaurant Id") REFERENCES "Food Advisor"."Restaurant"("Restaurant Id");
+
+
+--
+-- TOC entry 2146 (class 2606 OID 24719)
+-- Name: Res_Rev Image_Review Id_fkey; Type: FK CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Res_Rev Image"
+    ADD CONSTRAINT "Res_Rev Image_Review Id_fkey" FOREIGN KEY ("Review Id") REFERENCES "Food Advisor"."Review"("Review Id");
+
+
+--
+-- TOC entry 2138 (class 2606 OID 16621)
+-- Name: Restaurant_Location Id_fkey; Type: FK CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Restaurant"
+    ADD CONSTRAINT "Restaurant_Location Id_fkey" FOREIGN KEY ("Location Id") REFERENCES "Food Advisor"."Location"("Location Id");
+
+
+--
+-- TOC entry 2139 (class 2606 OID 16626)
+-- Name: Restaurant_Owner Id_fkey; Type: FK CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Restaurant"
+    ADD CONSTRAINT "Restaurant_Owner Id_fkey" FOREIGN KEY ("Owner Id") REFERENCES "Food Advisor"."Owner"("Owner Id");
+
+
+--
+-- TOC entry 2143 (class 2606 OID 24646)
+-- Name: Review_Customer Id_fkey; Type: FK CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Review"
+    ADD CONSTRAINT "Review_Customer Id_fkey" FOREIGN KEY ("Customer Id") REFERENCES "Food Advisor"."Customer"("Customer Id");
+
+
+--
+-- TOC entry 2144 (class 2606 OID 24695)
+-- Name: Review_Restaurant Id_fkey; Type: FK CONSTRAINT; Schema: Food Advisor; Owner: postgres
+--
+
+ALTER TABLE ONLY "Food Advisor"."Review"
+    ADD CONSTRAINT "Review_Restaurant Id_fkey" FOREIGN KEY ("Restaurant Id") REFERENCES "Food Advisor"."Restaurant"("Restaurant Id");
+
+
+--
+-- TOC entry 2285 (class 0 OID 0)
+-- Dependencies: 6
+-- Name: SCHEMA public; Type: ACL; Schema: -; Owner: postgres
+--
+
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+REVOKE ALL ON SCHEMA public FROM postgres;
+GRANT ALL ON SCHEMA public TO postgres;
+GRANT ALL ON SCHEMA public TO PUBLIC;
+
+
+-- Completed on 2019-02-14 11:38:30 +06
+
+--
+-- PostgreSQL database dump complete
+--
+
